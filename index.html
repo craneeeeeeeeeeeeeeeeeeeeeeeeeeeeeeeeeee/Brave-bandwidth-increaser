@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BANDWIDTH NUKE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060612;color:#eee;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px;padding:24px}
+#mb{font-size:88px;font-weight:700;color:#3b82f6;line-height:1;text-shadow:0 0 60px #3b82f655;letter-spacing:-2px}
+#mb-label{font-size:13px;color:#555;letter-spacing:3px;text-transform:uppercase;margin-top:-12px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:480px}
+.stat{background:#0d0d1a;border:1px solid #1a1a2e;padding:16px;text-align:center}
+.stat-v{font-size:28px;font-weight:700;color:#eee}
+.stat-k{font-size:10px;color:#555;letter-spacing:2px;text-transform:uppercase;margin-top:4px}
+.orange{color:#ff5500;text-shadow:0 0 20px #ff550055}
+.green{color:#00ff88}
+.blue{color:#3b82f6}
+.row{display:flex;gap:12px;width:100%;max-width:480px}
+button{font-family:monospace;font-size:12px;padding:14px 0;background:transparent;border:1px solid #222;color:#eee;cursor:pointer;letter-spacing:2px;text-transform:uppercase;flex:1}
+button:hover{border-color:#3b82f6;color:#3b82f6}
+button.on{background:#3b82f6;color:#000;border-color:#3b82f6;font-weight:700}
+#bar-wrap{width:100%;max-width:480px;background:#0d0d1a;border:1px solid #1a1a2e;height:8px}
+#bar{height:100%;background:#3b82f6;width:0%;transition:width 0.3s;box-shadow:0 0 12px #3b82f6}
+p{font-size:10px;color:#333;letter-spacing:1px;text-align:center;max-width:480px;line-height:1.8}
+</style>
+</head>
+<body>
+
+<div id="mb">0.00</div>
+<div id="mb-label">MB bandwidth saved (estimated)</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-v orange" id="blocked">0</div><div class="stat-k">Resources blocked</div></div>
+  <div class="stat"><div class="stat-v green" id="rps">0</div><div class="stat-k">Blocks / sec</div></div>
+  <div class="stat"><div class="stat-v blue" id="scripts">0</div><div class="stat-k">Scripts blocked</div></div>
+  <div class="stat"><div class="stat-v" id="iframes">0</div><div class="stat-k">iFrames blocked</div></div>
+</div>
+
+<div id="bar-wrap"><div id="bar"></div></div>
+
+<div class="row">
+  <button id="btn" onclick="toggle()">▶ START</button>
+  <button onclick="reset()">RESET</button>
+</div>
+
+<p>
+  Loads real ad scripts, tracking pixels, video pre-roll tags, and ad iframes<br>
+  from known large ad domains — Brave estimates bandwidth from known resource sizes.<br>
+  <strong style="color:#555">Open in multiple tabs to multiply the effect.</strong>
+</p>
+
+<script>
+// Real known ad network JS bundles and resources — these are large files
+// Brave's filter lists know their sizes and counts them toward bandwidth saved
+
+const AD_SCRIPTS = [
+  "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
+  "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
+  "https://static.doubleclick.net/instream/ad_status.js",
+  "https://www.googletagmanager.com/gtag/js?id=UA-XXXXX-Y",
+  "https://www.google-analytics.com/analytics.js",
+  "https://connect.facebook.net/en_US/fbevents.js",
+  "https://connect.facebook.net/en_US/sdk.js",
+  "https://cdn.taboola.com/libtrc/impl.264.js",
+  "https://cdn.taboola.com/libtrc/loader.js",
+  "https://widgets.outbrain.com/outbrain.js",
+  "https://ads.pubmatic.com/AdServer/js/showad.js",
+  "https://acdn.adnxs.com/ast/ast.js",
+  "https://js.adsrvr.org/up_loader.1.1.0.js",
+  "https://static.criteo.net/js/ld/publishertag.prebid.js",
+  "https://www.googletagservices.com/tag/js/gpt.js",
+  "https://s.ytimg.com/yts/jsbin/www-widgetapi-vflset/www-widgetapi.js",
+  "https://cdn.branch.io/branch-latest.min.js",
+  "https://sc-static.net/scevent.min.js",
+  "https://snap.licdn.com/li.lms-analytics/insight.min.js",
+  "https://analytics.tiktok.com/i18n/pixel/events.js",
+  "https://s.pinimg.com/ct/core.js",
+  "https://bat.bing.com/bat.js",
+  "https://sp.adbrn.com/js/adbrn.js",
+  "https://cdn.krxd.net/controltag/cf8de66f-21f8-48b3-b8da-f7b38b1f80b4.js",
+  "https://cdn2.hubspot.net/hubscore/hs-analytics.js",
+];
+
+// Known ad tracking pixels — smaller but Brave logs each one
+const PIXELS = [
+  "https://www.google-analytics.com/collect?v=1&t=pageview&tid=UA-000000-1&cid=555",
+  "https://www.facebook.com/tr?id=000000&ev=PageView",
+  "https://bat.bing.com/action/0?ti=000000&Ver=2",
+  "https://t.co/i/adsct?txn_id=o3pvf&p_id=Twitter",
+  "https://analytics.twitter.com/i/adsct?txn_id=o3pvf",
+  "https://px.ads.linkedin.com/collect?pid=000000&fmt=gif",
+  "https://ad.doubleclick.net/ddm/activity/src=000000;type=invmedia;cat=butto0;dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;ord=1?",
+  "https://cm.g.doubleclick.net/pixel?google_nid=test",
+  "https://pixel.advertising.com/ups/52255/sync?gdpr=0",
+  "https://sync.outbrain.com/impressions/pixel?ob_click_id=test",
+  "https://ib.adnxs.com/getuid?https://test.com/uid=$UID",
+  "https://sync.rubiconproject.com/usync.html?p=test",
+  "https://image2.pubmatic.com/AdServer/usync?p=test",
+  "https://dis.criteo.com/dis/usersync.aspx?p=test",
+  "https://match.adsrvr.org/track/cmf/generic?ttd_pid=test",
+];
+
+// Video ad tags — these are large VAST/VPAID responses
+const VIDEO_ADS = [
+  "https://pubads.g.doubleclick.net/gampad/ads?iu=/test/preroll&description_url=http%3A%2F%2Ftest.com&tfcd=0&npa=0&sz=640x480&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=",
+  "https://securepubads.g.doubleclick.net/gampad/ads?iu=/test/video&sz=640x480&output=vast&correlator=",
+];
+
+let running = false;
+let blocked = 0, scripts = 0, iframes = 0, last = 0;
+let estimatedMB = 0;
+let fid = null, rid = null, idx = 0;
+
+// Estimated sizes in KB for bandwidth calculation display
+const SCRIPT_SIZE_KB = 85; // avg ad script ~85KB
+const PIXEL_SIZE_KB = 2;
+const VIDEO_SIZE_KB = 45;
+
+const mbEl = document.getElementById('mb');
+const blockedEl = document.getElementById('blocked');
+const rpsEl = document.getElementById('rps');
+const scriptsEl = document.getElementById('scripts');
+const iframesEl = document.getElementById('iframes');
+const barEl = document.getElementById('bar');
+const btn = document.getElementById('btn');
+
+function fireScript() {
+  const url = AD_SCRIPTS[idx % AD_SCRIPTS.length] + '?_cb=' + Math.random();
+  const s = document.createElement('script');
+  s.src = url;
+  s.async = true;
+  document.head.appendChild(s);
+  setTimeout(() => { try { document.head.removeChild(s); } catch(e){} }, 2000);
+  estimatedMB += SCRIPT_SIZE_KB / 1024;
+  scripts++;
+  blocked++;
+  idx++;
+}
+
+function firePixel() {
+  const url = PIXELS[idx % PIXELS.length] + '&_cb=' + Math.random();
+  const img = new Image();
+  img.src = url;
+  estimatedMB += PIXEL_SIZE_KB / 1024;
+  blocked++;
+  idx++;
+}
+
+function fireIframe() {
+  const url = VIDEO_ADS[idx % VIDEO_ADS.length] + Math.random();
+  const f = document.createElement('iframe');
+  f.src = url;
+  f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+  document.body.appendChild(f);
+  setTimeout(() => { try { document.body.removeChild(f); } catch(e){} }, 3000);
+  estimatedMB += VIDEO_SIZE_KB / 1024;
+  iframes++;
+  blocked++;
+  idx++;
+}
+
+function loop() {
+  if (!running) return;
+  // Mix of resource types — scripts count most toward bandwidth
+  for (let i = 0; i < 6; i++) fireScript();
+  for (let i = 0; i < 10; i++) firePixel();
+  for (let i = 0; i < 2; i++) fireIframe();
+  fid = requestAnimationFrame(loop);
+}
+
+function updateDisplay() {
+  const rps = blocked - last;
+  last = blocked;
+  mbEl.textContent = estimatedMB.toFixed(2);
+  blockedEl.textContent = blocked.toLocaleString();
+  rpsEl.textContent = rps.toLocaleString();
+  scriptsEl.textContent = scripts.toLocaleString();
+  iframesEl.textContent = iframes.toLocaleString();
+  barEl.style.width = Math.min((estimatedMB / 100) * 100, 100) + '%';
+}
+
+function toggle() {
+  running ? stop() : start();
+}
+
+function start() {
+  running = true;
+  btn.textContent = '⏹ STOP';
+  btn.classList.add('on');
+  rid = setInterval(updateDisplay, 1000);
+  fid = requestAnimationFrame(loop);
+}
+
+function stop() {
+  running = false;
+  cancelAnimationFrame(fid);
+  clearInterval(rid);
+  btn.textContent = '▶ START';
+  btn.classList.remove('on');
+  updateDisplay();
+}
+
+function reset() {
+  stop();
+  blocked = scripts = iframes = last = idx = 0;
+  estimatedMB = 0;
+  mbEl.textContent = '0.00';
+  blockedEl.textContent = '0';
+  rpsEl.textContent = '0';
+  scriptsEl.textContent = '0';
+  iframesEl.textContent = '0';
+  barEl.style.width = '0%';
+}
+</script>
+</body>
+</html>
